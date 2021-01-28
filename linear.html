@@ -1,0 +1,22 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+
+    <script type="text/javascript">
+      async function run() {
+        const houseSalesDataSet = tf.data.csv(
+          'http://127.0.0.1:8080/kc_house_data.csv'
+        )
+        const sampleDataSet = houseSalesDataSet.take(10)
+        const dataArray = await sampleDataSet.toArray()
+        console.log(dataArray)
+      }
+
+      run()
+    </script>
+    <title>Linear Regression Example</title>
+  </head>
+  <body></body>
+</html>
