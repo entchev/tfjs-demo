@@ -3,8 +3,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
 
     <script type="text/javascript">
+      async function plot(pointsArray, featureName) {
+        tfvis.render.scatterplot(
+          { name: `${featureName} vs House Price` },
+          { values: [pointsArray], series: ['original'] },
+          { xLabel: featureName, yLabel: 'Price' }
+        )
+      }
+
       async function run() {
         const houseSalesDataSet = tf.data.csv(
           'http://127.0.0.1:8080/kc_house_data.csv'
@@ -12,6 +21,27 @@
         const sampleDataSet = houseSalesDataSet.take(10)
         const dataArray = await sampleDataSet.toArray()
         console.log(dataArray)
+
+        const points = houseSalesDataSet.map((record) => ({
+          x: record.sqft_living,
+          y: record.price,
+        }))
+
+        plot(await points.toArray(), 'Square feet')
+
+        // Features (inputs)
+        const featureValues = await points.map((p) => p.x).toArray()
+        const featureTensor = tf.tensor2d(featureValues, [
+          featureValues.length,
+          1,
+        ])
+
+        // Labels (outputs)
+        const labelValues = await points.map((p) => p.y).toArray()
+        const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1])
+
+        featureTensor.print()
+        labelTensor.print()
       }
 
       run()
