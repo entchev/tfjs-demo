@@ -14,34 +14,96 @@
         )
       }
 
+      //   normalise values to be between 0 - 1
+
+      function normalise(tensor) {
+        const min = tensor.min()
+        const max = tensor.max()
+        const normalisedTensor = tensor.sub(min).div(max.sub(min))
+        return {
+          tensor: normalisedTensor,
+          min,
+          max,
+        }
+      }
+
+      //   creating a model
+
+      function createModel() {
+        const model = tf.sequential()
+
+        model.add(
+          tf.layers.dense({
+            units: 1,
+            useBias: true,
+            activation: 'linear',
+            inputDim: 1,
+          })
+        )
+
+        return model
+      }
+
+      //   return noramlised values back to previous state
+
+      function denormalise(tensor, min, max) {
+        const denormalisedTensor = tensor.mul(max.sub(min)).add(min)
+        return denormalisedTensor
+      }
+
       async function run() {
+        // ensure tf backend has been initialised
+        await tf.ready()
+
+        // import from CSV
         const houseSalesDataSet = tf.data.csv(
           'http://127.0.0.1:8080/kc_house_data.csv'
         )
-        const sampleDataSet = houseSalesDataSet.take(10)
-        const dataArray = await sampleDataSet.toArray()
-        console.log(dataArray)
 
-        const points = houseSalesDataSet.map((record) => ({
+        // extract x and y values and plot
+        const pointsDataset = houseSalesDataSet.map((record) => ({
           x: record.sqft_living,
           y: record.price,
         }))
+        const points = await pointsDataset.toArray()
 
-        plot(await points.toArray(), 'Square feet')
+        // if odd number of elements remove one element
+        if (points.length % 2 !== 0) {
+          points.pop()
+        }
 
-        // Features (inputs)
-        const featureValues = await points.map((p) => p.x).toArray()
+        // shuffle the data
+        tf.util.shuffle(points)
+
+        // plot graph
+        plot(points, 'Square feet')
+
+        // Extract Features (inputs)
+        const featureValues = points.map((p) => p.x)
         const featureTensor = tf.tensor2d(featureValues, [
           featureValues.length,
           1,
         ])
 
-        // Labels (outputs)
-        const labelValues = await points.map((p) => p.y).toArray()
+        // Extract Labels (outputs)
+        const labelValues = points.map((p) => p.y)
         const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1])
 
-        featureTensor.print()
-        labelTensor.print()
+        // Normalise features and labels
+        const normalisedFeature = normalise(featureTensor)
+        const normalisedLabel = normalise(labelTensor)
+
+        const [trainingFeatureTensor, testingFeatureTensor] = tf.split(
+          normalisedFeature.tensor,
+          2
+        )
+
+        const [trainingLabelTensor, testingLabelTensor] = tf.split(
+          normalisedLabel.tensor,
+          2
+        )
+
+        const model = createModel()
       }
 
       run()
