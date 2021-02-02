@@ -41,7 +41,38 @@
           })
         )
 
+        const optimizer = tf.train.adam()
+
+        model.compile({
+          loss: 'meanSquaredError',
+          optimizer,
+        })
+
         return model
+      }
+
+      //   model training function
+
+      async function trainModel(
+        model,
+        trainingFeatureTensor,
+        trainingLabelTensor
+      ) {
+        const { onBatchEnd, onEpochEnd } = tfvis.show.fitCallbacks(
+          {
+            name: 'Training Performance',
+          },
+          ['loss']
+        )
+
+        return model.fit(trainingFeatureTensor, trainingLabelTensor, {
+          batchsize: 32,
+          epochs: 20,
+          validationSplit: 0.2,
+          callbacks: {
+            onEpochEnd,
+          },
+        })
       }
 
       //   return noramlised values back to previous state
@@ -76,7 +107,7 @@
         tf.util.shuffle(points)
 
         // plot graph
-        plot(points, 'Square feet')
+        plot(points, 'Sq ft')
 
         // Extract Features (inputs)
         const featureValues = points.map((p) => p.x)
@@ -104,6 +135,30 @@
         )
 
         const model = createModel()
+
+        // inspecting the model
+
+        tfvis.show.modelSummary({ name: 'Model summary' }, model)
+        const layer = model.getLayer(undefined, 0)
+        tfvis.show.layer({ name: 'Layer 1' }, layer)
+
+        // executing the training
+        const result = await trainModel(
+          model,
+          trainingFeatureTensor,
+          trainingLabelTensor
+        )
+        const trainingLoss = result.history.loss.pop()
+        console.log(`Training set loss: ${trainingLoss}`)
+        const validationLoss = result.history.val_loss.pop()
+        console.log(`Validation set loss: ${validationLoss}`)
+
+        const lossTensor = model.evaluate(
+          testingFeatureTensor,
+          testingLabelTensor
+        )
+        const loss = await lossTensor.dataSync()
+        console.log(`Testing set loss: ${loss}`)
       }
 
       run()
