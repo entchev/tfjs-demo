@@ -86,10 +86,24 @@
 
         model.add(
           tf.layers.dense({
+            units: 10,
+            useBias: true,
+            activation: 'sigmoid',
+            inputDim: 1,
+          })
+        )
+        model.add(
+          tf.layers.dense({
+            units: 10,
+            useBias: true,
+            activation: 'sigmoid',
+          })
+        )
+        model.add(
+          tf.layers.dense({
             units: 1,
             useBias: true,
-            activation: 'linear',
-            inputDim: 1,
+            activation: 'sigmoid',
           })
         )
 
@@ -114,7 +128,7 @@
 
         return model.fit(trainingFeatureTensor, trainingLabelTensor, {
           batchSize: 32,
-          epochs: 20,
+          epochs: 100,
           validationSplit: 0.2,
           callbacks: {
             onEpochEnd,
