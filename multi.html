@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>Multi-class classification with TensorFlow.js</title>
+    <title>TensorFlow.js multi-class classification</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
     <link
@@ -19,7 +19,7 @@
         pointsArray,
         classKey,
         size = 400,
-        equalizeClassSizes = false
+        equalizeClassSizes = true
       ) {
         const allSeries = {}
         // Add each class as a series
@@ -53,9 +53,7 @@
             }
           })
         }
-        //     let csv = "";
-        //     Object.values(allSeries).forEach(s => s.forEach(v => csv += `${v.x}, ${v.y}, ${v.class}\n`));
-        // console.log(csv);
+
         tfvis.render.scatterplot(
           {
             name: `Square feet vs House Price`,
@@ -70,29 +68,6 @@
             yLabel: 'Price',
             height: size,
             width: size * 1.5,
-          }
-        )
-      }
-
-      async function plot(
-        pointsArray,
-        featureName,
-        predictedPointsArray = null
-      ) {
-        const values = [pointsArray.slice(0, 1000)]
-        const series = ['original']
-        if (Array.isArray(predictedPointsArray)) {
-          values.push(predictedPointsArray)
-          series.push('predicted')
-        }
-
-        tfvis.render.scatterplot(
-          { name: `${featureName} vs House Price` },
-          { values, series },
-          {
-            xLabel: featureName,
-            yLabel: 'Price',
-            height: 300,
           }
         )
       }
@@ -143,28 +118,31 @@
         const yTicks = await yTicksPromise
         const xTickLabels = xTicks.map((v) => (v / 1000).toFixed(1) + 'k sqft')
         const yTickLabels = yTicks.map((v) => '$' + (v / 1000).toFixed(0) + 'k')
-        const data = {
-          values,
-          xTickLabels,
-          yTickLabels,
-        }
 
-        tfvis.render.heatmap(
-          {
-            name: `${name} (local)`,
-            tab: 'Predictions',
-          },
-          data,
-          { height: size }
-        )
-        tfvis.render.heatmap(
-          {
-            name: `${name} (full domain)`,
-            tab: 'Predictions',
-          },
-          data,
-          { height: size, domain: [0, 1] }
-        )
+        tf.unstack(values, 2).forEach((values, i) => {
+          const data = {
+            values,
+            xTickLabels,
+            yTickLabels,
+          }
+
+          tfvis.render.heatmap(
+            {
+              name: `Bedrooms: ${getClassName(i)} (local)`,
+              tab: 'Predictions',
+            },
+            data,
+            { height: size }
+          )
+          tfvis.render.heatmap(
+            {
+              name: `Bedrooms: ${getClassName(i)} (full domain)`,
+              tab: 'Predictions',
+            },
+            data,
+            { height: size, domain: [0, 1] }
+          )
+        })
       }
 
       function normalise(tensor, previousMin = null, previousMax = null) {
@@ -250,15 +228,15 @@
         )
         model.add(
           tf.layers.dense({
-            units: 1,
+            units: 3,
             useBias: true,
-            activation: 'sigmoid',
+            activation: 'softmax',
           })
         )
 
         const optimizer = tf.train.adam()
         model.compile({
-          loss: 'binaryCrossentropy',
+          loss: 'categoricalCrossentropy',
           optimizer,
         })
 
@@ -277,7 +255,7 @@
 
         return model.fit(trainingFeatureTensor, trainingLabelTensor, {
           batchSize: 32,
-          epochs: 2000,
+          epochs: 500,
           validationSplit: 0.2,
           callbacks: {
             onEpochEnd,
@@ -319,16 +297,21 @@
               normalisedLabel.min,
               normalisedLabel.max
             )
-            const outputValue = outputTensor.dataSync()[0]
-            const outputValuePercent = (outputValue * 100).toFixed(1)
-            document.getElementById('prediction-output').innerHTML =
-              `The likelihood of being a waterfront property is <br>` +
-              `<span style="font-size: 2em">${outputValuePercent}%</span>`
+            const outputs = outputTensor.dataSync()
+            let outputString = ''
+            for (let i = 0; i < 3; i++) {
+              outputString += `Likelihood of having ${getClassName(
+                i
+              )} bedrooms is: ${(outputs[i] * 100).toFixed(1)}%<br>`
+            }
+            document.getElementById(
+              'prediction-output'
+            ).innerHTML = outputString
           })
         }
       }
 
-      const storageID = 'kc-house-price-binary'
+      const storageID = 'kc-house-price-multi'
       async function save() {
         const saveResults = await model.save(`localstorage://${storageID}`)
         document.getElementById(
@@ -419,6 +402,24 @@
         tfvis.visor().toggle()
       }
 
+      function getClassIndex(className) {
+        if (className === 1 || className === '1') {
+          return 0 // 1 bedroom
+        } else if (className === 2 || className === '2') {
+          return 1 // 2 bedrooms
+        } else {
+          return 2 // 3+ bedrooms
+        }
+      }
+
+      function getClassName(classIndex) {
+        if (classIndex === 2) {
+          return '3+'
+        } else {
+          return classIndex + 1
+        }
+      }
+
       let points
       let normalisedFeature, normalisedLabel
       let trainingFeatureTensor,
@@ -426,6 +427,9 @@
         trainingLabelTensor,
         testingLabelTensor
       async function run() {
+        // Ensure backend has initialized
+        await tf.ready()
+
         // Import from CSV
         const houseSalesDataset = tf.data.csv('./kc_house_data.csv')
 
@@ -442,7 +446,6 @@
           // If odd number of elements
           points.pop() // remove one element
         }
-        console.log(points)
         tf.util.shuffle(points)
         plotClasses(points, 'Bedrooms')
 
@@ -451,8 +454,10 @@
         const featureTensor = tf.tensor2d(featureValues)
 
         // Extract Labels (outputs)
-        const labelValues = points.map((p) => p.class)
-        const labelTensor = tf.tensor2d(labelValues, [labelValues.length, 1])
+        const labelValues = points.map((p) => getClassIndex(p.class))
+        const labelTensor = tf.tidy(() =>
+          tf.oneHot(tf.tensor1d(labelValues, 'int32'), 3)
+        )
 
         // Normalise features and labels
         normalisedFeature = normalise(featureTensor)
@@ -485,7 +490,7 @@
         </h5>
         <div class="row center">
           <h6 class="header col s12 light">
-            Train a model to predict the number of bedrooms in a house
+            Train a model to predict a class.
           </h6>
         </div>
       </div>
