@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <title>TensorFlow.js binary classification</title>
+    <title>Multi-class classification with TensorFlow.js</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
     <link
@@ -18,7 +18,7 @@
       async function plotClasses(
         pointsArray,
         classKey,
-        size = 800,
+        size = 400,
         equalizeClassSizes = false
       ) {
         const allSeries = {}
@@ -53,7 +53,7 @@
             }
           })
         }
-        //     let csvx = "";
+        //     let csv = "";
         //     Object.values(allSeries).forEach(s => s.forEach(v => csv += `${v.x}, ${v.y}, ${v.class}\n`));
         // console.log(csv);
         tfvis.render.scatterplot(
@@ -410,6 +410,7 @@
           tf.tensor2d([[weight]]), // Kernel (input multiplier)
           tf.tensor1d([bias]), // Bias
         ])
+        await plotPredictionLine()
         const layer = model.getLayer(undefined, 0)
         tfvis.show.layer({ name: 'Layer 1' }, layer)
       }
@@ -425,18 +426,17 @@
         trainingLabelTensor,
         testingLabelTensor
       async function run() {
-        // Ensure backend has initialized
-        await tf.ready()
-
         // Import from CSV
         const houseSalesDataset = tf.data.csv('./kc_house_data.csv')
 
         // Extract x and y values to plot
-        const pointsDataset = houseSalesDataset.map((record) => ({
-          x: record.sqft_living,
-          y: record.price,
-          class: record.waterfront,
-        }))
+        const pointsDataset = houseSalesDataset
+          .map((record) => ({
+            x: record.sqft_living,
+            y: record.price,
+            class: record.bedrooms > 2 ? '3+' : record.bedrooms,
+          }))
+          .filter((r) => r.class !== 0)
         points = await pointsDataset.toArray()
         if (points.length % 2 !== 0) {
           // If odd number of elements
@@ -444,7 +444,7 @@
         }
         console.log(points)
         tf.util.shuffle(points)
-        plotClasses(points, 'Waterfront')
+        plotClasses(points, 'Bedrooms')
 
         // Extract Features (inputs)
         const featureValues = points.map((p) => [p.x, p.y])
@@ -480,24 +480,24 @@
     <!--   Header   -->
     <div class="section no-pad-bot" id="index-banner">
       <div class="container">
-        <h5 class="header center green-text small">
-          Binary classification with TensorFlow.js
+        <h5 class="header center red-text small">
+          Multi-class classification with TensorFlow.js
         </h5>
         <div class="row center">
           <h6 class="header col s12 light">
-            Train a model to predict a class.
+            Train a model to predict the number of bedrooms in a house
           </h6>
         </div>
       </div>
     </div>
 
     <!--   Misc buttons   -->
-    <div class="section no-pad-bot light-green lighten-4">
+    <div class="section no-pad-bot red lighten-4">
       <div class="container">
         <div class="row center">
           <button
             id="toggle-button"
-            class="waves-effect waves-light light-green btn-small"
+            class="waves-effect waves-light red btn-small"
             onclick="toggleVisor()"
           >
             Toggle Visor
@@ -514,7 +514,7 @@
           <!--   Training   -->
           <div class="col s12 m6">
             <div class="icon-block">
-              <h3 class="center light-green-text">
+              <h3 class="center red-text">
                 <i class="material-icons" style="font-size: 2em">build</i>
               </h3>
               <h5 class="center">Train & Test</h5>
@@ -537,7 +537,7 @@
                 <button
                   autocomplete="off"
                   id="train-button"
-                  class="waves-effect light-green waves-light btn"
+                  class="waves-effect red waves-light btn"
                   disabled
                   onclick="train()"
                 >
@@ -546,7 +546,7 @@
                 <button
                   autocomplete="off"
                   id="test-button"
-                  class="waves-effect light-green waves-light btn"
+                  class="waves-effect red waves-light btn"
                   disabled
                   onclick="test()"
                 >
@@ -559,7 +559,7 @@
                 <button
                   autocomplete="off"
                   id="load-button"
-                  class="waves-effect light-green waves-light btn-small"
+                  class="waves-effect red waves-light btn-small"
                   disabled
                   onclick="load()"
                 >
@@ -568,7 +568,7 @@
                 <button
                   autocomplete="off"
                   id="save-button"
-                  class="waves-effect light-green waves-light btn-small"
+                  class="waves-effect red waves-light btn-small"
                   disabled
                   onclick="save()"
                 >
@@ -581,7 +581,7 @@
           <!--   Prediction   -->
           <div class="col s12 m6">
             <div class="icon-block">
-              <h3 class="center light-green-text">
+              <h3 class="center red-text">
                 <i class="material-icons" style="font-size: 2em">timeline</i>
               </h3>
               <h5 class="center">Predict</h5>
@@ -600,7 +600,7 @@
               <button
                 autocomplete="off"
                 id="predict-button"
-                class="waves-effect light-green waves-light btn"
+                class="waves-effect red waves-light btn"
                 disabled
                 onclick="predict()"
               >
